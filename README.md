@@ -1,6 +1,6 @@
 # Jina Reader -- Agent Skill
 
-An [Agent Skill](https://agentskills.io) that fetches clean markdown from URLs using [Jina Reader](https://jina.ai/reader). Works with web pages, PDFs, and JS-heavy sites.
+An [Agent Skill](https://agentskills.io) that downloads clean markdown from URLs using [Jina Reader](https://jina.ai/reader). Works with web pages, PDFs, and JS-heavy sites. Content is saved to local files, not loaded into the agent's context.
 
 ## Install
 
@@ -37,8 +37,9 @@ Once installed, ask your agent to fetch URLs as markdown:
 - "Fetch https://example.com as markdown"
 - "Save these URLs to local markdown files"
 - "Read this PDF and save it locally"
+- "Download all the URLs in urls.txt as markdown"
 
-The skill includes a Python helper script and supports presets: `default`, `full-page`, `text-only`, and `wait-for-content`.
+The skill uses a bundled Python script with preset modes: `default`, `full-page`, `text-only`, and `wait-for-content`.
 
 ## License
 

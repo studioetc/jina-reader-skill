@@ -1,191 +1,126 @@
 ---
 name: jina-reader
-description: Use r.jina.ai to save web pages, articles, PDFs, and URL lists as local markdown files. Use when the user asks to fetch, read, convert, or save URLs to markdown with Jina Reader.
+description: Fetch web pages, articles, and PDFs as clean markdown files using r.jina.ai. Use this skill whenever the user wants to download a URL as markdown, save web content locally, process a list of URLs into markdown files, or grab readable text from a web page. Always use this skill rather than building curl commands to r.jina.ai yourself.
 license: MIT
 metadata:
   author: onestepplus
-  version: "1.0"
+  version: "1.1"
 ---
 
-# Jina AI — Reader
+# Jina Reader
 
-Web reading powered by Jina AI. Fetch clean markdown from URLs with `r.jina.ai`.
+Download clean markdown from URLs via [r.jina.ai](https://jina.ai/reader) and save to local files.
 
-> **Trust & Privacy:** By using this skill, URLs are transmitted to Jina AI (`jina.ai`). Only use this skill if you are comfortable sending those URLs to Jina.
+> **Privacy:** URLs are sent to Jina AI for processing. Only use with URLs you're comfortable sharing.
 
-## Security & Privacy
+## How It Works
 
-- **Authentication:** If `JINA_API_KEY` is set, the helper script sends an `Authorization` header. Without a key, Reader still works (free tier: 20 RPM). All presets work with or without a key.
-- **Data sent:** URLs you provide are sent to Jina's servers for processing
-- **Local files:** No local files are sent to Jina
-- **Local storage:** This skill saves markdown files locally in your repo
-- **Environment access:** The helper script optionally reads `JINA_API_KEY`
+Run the bundled Python script. It calls the r.jina.ai API, extracts the markdown content from the response, and writes one `.md` file per URL with source metadata in the frontmatter. The markdown is saved to disk, not loaded into your context.
 
-## Endpoint
+The script lives at: `scripts/jina-reader.py` (relative to this skill's directory).
 
-| Endpoint | Base URL | Purpose |
-| --- | --- | --- |
-| **Reader** | `https://r.jina.ai/{url}` | Convert any URL to clean markdown |
+## Quick Start
 
-`Authorization: Bearer $JINA_API_KEY` is optional, but useful for higher rate limits.
-
----
-
-## Reader API (`r.jina.ai`)
-
-Fetches any URL and returns clean, LLM-friendly content. Works with web pages, PDFs, and JS-heavy sites.
-
-### Basic Usage
+Single URL:
 
 ```bash
-# Plain text output
-curl -s "https://r.jina.ai/https://example.com" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "Accept: text/plain"
-
-# JSON output (includes url, title, content, timestamp)
-curl -s "https://r.jina.ai/https://example.com" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "Accept: application/json"
+python <skill-path>/scripts/jina-reader.py https://example.com/article
 ```
 
-Or use the bundled helper script. Resolve `scripts/jina-reader.py` relative to this skill directory, but run it from the user's current project directory so output is saved in that project:
+Multiple URLs:
 
 ```bash
-python3 <skill-dir>/scripts/jina-reader.py <url> [<url> ...]
+python <skill-path>/scripts/jina-reader.py https://one.com https://two.com https://three.com
 ```
 
-You can also pass a text file with one URL per line:
+Bulk from a file (one URL per line, `#` comments and blank lines ignored):
 
 ```bash
-python3 <skill-dir>/scripts/jina-reader.py --input-file urls.txt
+python <skill-path>/scripts/jina-reader.py --input-file urls.txt
 ```
 
-By default, the helper script saves markdown files to `docs/sources/`.
-
-## Custom Presets
-
-These are this skill's presets. They are not the same as Jina Reader's own API defaults.
-
-- `default` - clean markdown with common page chrome removed and images stripped
-- `full-page` - keep the full page output
-- `text-only` - strip images and links, and try to focus on the page's main reading area
-- `wait-for-content` - use `X-Respond-Timing: network-idle` and `X-Timeout: 30`; if that still fails, try again with `--wait-for-selector`
-
-Use them like this:
+Output goes to `docs/sources/` by default. Override with `--output-dir`:
 
 ```bash
-python3 <skill-dir>/scripts/jina-reader.py --preset default <url>
+python <skill-path>/scripts/jina-reader.py https://example.com --output-dir ./saved-pages
 ```
 
-### Parameters (via headers)
+## Presets
 
-#### Content Control
+Presets bundle common header configurations. Pass them with `--preset`:
 
-| Header | Values | Default | Description |
-| --- | --- | --- | --- |
-| `X-Respond-With` | `content`, `markdown`, `html`, `text`, `screenshot`, `pageshot`, `vlm`, `readerlm-v2` | `content` | Output format |
-| `X-Retain-Images` | `none`, `all`, `alt`, `all_p`, `alt_p` | `all` | Image handling |
-| `X-Retain-Links` | `none`, `all`, `text`, `gpt-oss` | `all` | Link handling |
-| `X-With-Generated-Alt` | `true` / `false` | `false` | Auto-caption images |
-| `X-With-Links-Summary` | `true` | - | Append links section |
-| `X-With-Images-Summary` | `true` / `false` | `false` | Append images section |
-| `X-Token-Budget` | number | - | Max tokens for response |
-
-#### CSS Selectors
-
-| Header | Description |
-| --- | --- |
-| `X-Target-Selector` | Only extract matching elements |
-| `X-Wait-For-Selector` | Wait for elements before extracting |
-| `X-Remove-Selector` | Remove elements before extraction |
-
-#### Browser & Network
-
-| Header | Description |
-| --- | --- |
-| `X-Timeout` | Page load timeout (1-180s) |
-| `X-Respond-Timing` | When page is "ready" (`html`, `network-idle`, etc.) |
-| `X-No-Cache` | Bypass cached content |
-| `X-Proxy` | Country code or `auto` for proxy |
-| `X-Set-Cookie` | Forward cookies for authenticated content |
-
-The helper script also exposes:
-- `--preset` for the custom presets above
-- `--respond-timing` to set `X-Respond-Timing`
-- `--page-timeout` to set `X-Timeout`
-- `--no-cache` to set `X-No-Cache: true`
-
-### Common Patterns
+| Preset | What it does |
+|--------|-------------|
+| `default` | Clean markdown, strips nav/header/footer/aside and images |
+| `full-page` | Full page as markdown, nothing stripped |
+| `text-only` | Main content only, no images or links, strips page chrome |
+| `wait-for-content` | Waits up to 30s for JS-rendered content before extracting |
 
 ```bash
-# Extract main content, remove navigation elements
-curl -s "https://r.jina.ai/https://example.com/article" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "X-Retain-Images: none" \
-  -H "X-Remove-Selector: nav, footer, .sidebar, .ads" \
-  -H "Accept: text/plain"
-
-# Extract specific section
-curl -s "https://r.jina.ai/https://example.com" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "X-Target-Selector: article.main-content"
-
-# Parse a PDF
-curl -s "https://r.jina.ai/https://example.com/paper.pdf" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "Accept: text/plain"
-
-# Wait for dynamic content
-curl -s "https://r.jina.ai/https://spa-app.com" \
-  -H "Authorization: Bearer $JINA_API_KEY" \
-  -H "X-Wait-For-Selector: .loaded-content" \
-  -H "X-Respond-Timing: network-idle"
+python <skill-path>/scripts/jina-reader.py --preset text-only https://example.com
 ```
 
-## Helper Script
+If no preset is specified, the script uses Jina Reader's own defaults (full markdown with images and links).
 
-| Script | Purpose |
-| --- | --- |
-| `scripts/jina-reader.py` | Read one or more URLs via `r.jina.ai` and save local output files |
+## Override Options
 
-The helper script supports:
-- `--preset default|full-page|text-only|wait-for-content`
-- direct URL arguments or `--input-file`
-- `--output-dir` for where files are written
-- `--remove-selector`, `--target-selector`, `--wait-for-selector`
-- `--retain-images`, `--retain-links`
-- `--respond-timing`, `--page-timeout`, `--no-cache`
-- `--insecure` for local-dev certificate issues
+Override or combine with presets:
 
-## Output
+```bash
+python <skill-path>/scripts/jina-reader.py https://example.com \
+  --preset default \
+  --retain-images all \
+  --target-selector "article.main-content"
+```
 
-The helper script saves one local file per URL. Markdown files include frontmatter like:
+| Flag | Values | Effect |
+|------|--------|--------|
+| `--retain-images` | `none`, `all`, `alt`, `all_p`, `alt_p` | Control image inclusion |
+| `--retain-links` | `none`, `all`, `text`, `gpt-oss` | Control link inclusion |
+| `--remove-selector` | CSS selector | Remove matching elements |
+| `--target-selector` | CSS selector | Extract only matching elements |
+| `--wait-for-selector` | CSS selector | Wait for element before extracting |
+| `--respond-timing` | `html`, `network-idle` | When to consider the page ready |
+| `--page-timeout` | seconds (1-180) | Reader-side page load timeout |
+| `--no-cache` | flag | Bypass Jina's cached content |
+| `--timeout` | seconds | Local HTTP request timeout (default: 60) |
+
+## Output Format
+
+Each saved file includes frontmatter:
 
 ```md
 ---
 source_url: https://example.com/page
 title: Example Page
-fetched_at: 2026-05-03T12:34:56Z
+fetched_at: 2026-05-03T12:34:56+00:00
 ---
+
+(markdown content here)
 ```
 
-Then the Reader markdown content follows.
+Filenames are derived from the page title or URL path, deduplicated automatically.
 
-## Rate Limits
+## Authentication
 
-- **No key:** 20 RPM (all presets and headers still work)
-- **Free API key:** 500 RPM
-- If you hit rate limits without a key, set `JINA_API_KEY` and retry
+If `JINA_API_KEY` is set in the environment, the script uses it for higher rate limits. Without a key, the free tier applies (20 RPM). The script has a built-in default key for convenience.
 
-## API Docs
+## When to Use This Skill
 
-- Reader: [https://jina.ai/reader](https://jina.ai/reader)
-- OpenAPI spec: [https://r.jina.ai/openapi.json](https://r.jina.ai/openapi.json)
+- User asks to fetch/download/save a URL as markdown
+- User has a list of URLs to process in bulk
+- User wants to read a web page or PDF and save it locally
+- User wants clean text from a web page without boilerplate
 
-## When to Use
+When the user wants web content, reach for the script. Do not build curl commands to r.jina.ai yourself -- the script handles authentication, presets, error handling, and file saving.
 
-- Fetch a URL as clean markdown
-- Parse a PDF from a URL
-- Strip navigation or boilerplate before extraction (use selector headers)
-- Save one or many URLs to local markdown files (use `scripts/jina-reader.py`)
+## Troubleshooting
+
+- **Empty content from `text-only`**: Some sites don't use `<main>`. The script will need a manual `--target-selector` pointing at the right element, or try `--preset default` instead.
+- **JS-heavy pages returning stubs**: Use `--preset wait-for-content`. If still incomplete, add `--wait-for-selector .your-content-class`.
+- **Rate limited**: Set `JINA_API_KEY` in your environment for 500 RPM.
+
+## API Reference
+
+- [Jina Reader docs](https://jina.ai/reader)
+- [OpenAPI spec](https://r.jina.ai/openapi.json)

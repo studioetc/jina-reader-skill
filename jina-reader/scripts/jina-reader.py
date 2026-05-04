@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 from urllib import error, parse, request
 
+
+DEFAULT_JINA_API_KEY = ""  # Set JINA_API_KEY in your environment, or hard-code your own here for personal use. Do not commit a real key.
 PRESETS = {
     "default": {
         "headers": {
@@ -110,8 +112,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--insecure",
-        action="store_true",
-        help="Disable TLS certificate verification for local-dev use.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Disable TLS certificate verification. Default: enabled for local testing.",
     )
     return parser.parse_args()
 
@@ -150,7 +153,7 @@ def build_headers(args: argparse.Namespace) -> Dict[str, str]:
         ),
     }
 
-    api_key = os.environ.get("JINA_API_KEY")
+    api_key = os.environ.get("JINA_API_KEY") or DEFAULT_JINA_API_KEY
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
@@ -175,15 +178,6 @@ def build_headers(args: argparse.Namespace) -> Dict[str, str]:
         headers["X-No-Cache"] = "true"
 
     return headers
-
-
-def build_retry_headers(args: argparse.Namespace, headers: Dict[str, str]) -> Dict[str, str] | None:
-    if args.preset != "text-only" or args.target_selector:
-        return None
-
-    retry_headers = dict(headers)
-    retry_headers.pop("X-Target-Selector", None)
-    return retry_headers
 
 
 def slugify(value: str) -> str:
@@ -246,14 +240,6 @@ def write_markdown(output_path: Path, source_url: str, title: str, content: str)
     output_path.write_text(frontmatter + content.rstrip() + "\n", encoding="utf-8")
 
 
-def extract_content(payload: Dict[str, object], fallback_url: str) -> tuple[str, str, str]:
-    data = unwrap_reader_payload(payload)
-    source_url = str(data.get("url") or fallback_url)
-    title = str(data.get("title") or "")
-    content = str(data.get("content") or "").strip()
-    return source_url, title, content
-
-
 def main() -> int:
     args = parse_args()
     urls = load_urls(args.urls, args.input_file)
@@ -272,18 +258,10 @@ def main() -> int:
     for url in urls:
         try:
             payload = fetch_reader_json(url, headers, args.timeout, args.insecure)
-            source_url, title, content = extract_content(payload, url)
-
-            if not content:
-                retry_headers = build_retry_headers(args, headers)
-                if retry_headers:
-                    payload = fetch_reader_json(url, retry_headers, args.timeout, args.insecure)
-                    source_url, title, content = extract_content(payload, url)
-                    if content:
-                        print(
-                            f"Retried {url} without the preset main selector because the page returned no main content.",
-                            file=sys.stderr,
-                        )
+            data = unwrap_reader_payload(payload)
+            source_url = str(data.get("url") or url)
+            title = str(data.get("title") or "")
+            content = str(data.get("content") or "").strip()
 
             if not content:
                 raise ValueError("Reader returned empty content.")
@@ -295,12 +273,6 @@ def main() -> int:
         except (error.HTTPError, error.URLError, json.JSONDecodeError, ValueError) as exc:
             failures += 1
             print(f"Failed {url}: {exc}", file=sys.stderr)
-            if isinstance(exc, error.HTTPError) and exc.code == 429 and not os.environ.get("JINA_API_KEY"):
-                print(
-                    "Reader works without a key, but you may have hit the no-key rate limit. "
-                    "Set JINA_API_KEY for higher limits.",
-                    file=sys.stderr,
-                )
             if args.preset == "wait-for-content" and not args.wait_for_selector:
                 print(
                     "Tip: try again with --wait-for-selector if the page loads content via JavaScript.",
