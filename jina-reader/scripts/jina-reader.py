@@ -33,6 +33,7 @@ PRESETS = {
             "X-Target-Selector": "main",
             "X-Retain-Images": "none",
             "X-Retain-Links": "none",
+            "X-Remove-Selector": "nav, header, footer, aside",
         },
     },
     "wait-for-content": {
@@ -176,6 +177,15 @@ def build_headers(args: argparse.Namespace) -> Dict[str, str]:
     return headers
 
 
+def build_retry_headers(args: argparse.Namespace, headers: Dict[str, str]) -> Dict[str, str] | None:
+    if args.preset != "text-only" or args.target_selector:
+        return None
+
+    retry_headers = dict(headers)
+    retry_headers.pop("X-Target-Selector", None)
+    return retry_headers
+
+
 def slugify(value: str) -> str:
     value = value.lower()
     value = re.sub(r"^https?://", "", value)
@@ -236,6 +246,14 @@ def write_markdown(output_path: Path, source_url: str, title: str, content: str)
     output_path.write_text(frontmatter + content.rstrip() + "\n", encoding="utf-8")
 
 
+def extract_content(payload: Dict[str, object], fallback_url: str) -> tuple[str, str, str]:
+    data = unwrap_reader_payload(payload)
+    source_url = str(data.get("url") or fallback_url)
+    title = str(data.get("title") or "")
+    content = str(data.get("content") or "").strip()
+    return source_url, title, content
+
+
 def main() -> int:
     args = parse_args()
     urls = load_urls(args.urls, args.input_file)
@@ -254,10 +272,18 @@ def main() -> int:
     for url in urls:
         try:
             payload = fetch_reader_json(url, headers, args.timeout, args.insecure)
-            data = unwrap_reader_payload(payload)
-            source_url = str(data.get("url") or url)
-            title = str(data.get("title") or "")
-            content = str(data.get("content") or "").strip()
+            source_url, title, content = extract_content(payload, url)
+
+            if not content:
+                retry_headers = build_retry_headers(args, headers)
+                if retry_headers:
+                    payload = fetch_reader_json(url, retry_headers, args.timeout, args.insecure)
+                    source_url, title, content = extract_content(payload, url)
+                    if content:
+                        print(
+                            f"Retried {url} without the preset main selector because the page returned no main content.",
+                            file=sys.stderr,
+                        )
 
             if not content:
                 raise ValueError("Reader returned empty content.")

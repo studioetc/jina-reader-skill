@@ -9,7 +9,7 @@ Copy the `jina-reader/` directory into your agent's skills folder:
 | Tool | Skills location |
 |------|----------------|
 | Claude Code | `~/.claude/skills/` |
-| Codex CLI | `~/.codex/skills/` |
+| Codex | `~/.agents/skills/` |
 | Gemini CLI | `~/.gemini/skills/` |
 | VS Code / Copilot | `.github/skills/` in your repo |
 

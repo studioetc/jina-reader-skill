@@ -2,7 +2,6 @@
 name: jina-reader
 description: Use r.jina.ai to save web pages, articles, PDFs, and URL lists as local markdown files. Use when the user asks to fetch, read, convert, or save URLs to markdown with Jina Reader.
 license: MIT
-compatibility: Requires Python 3 and internet access
 metadata:
   author: onestepplus
   version: "1.0"
@@ -70,7 +69,7 @@ These are this skill's presets. They are not the same as Jina Reader's own API d
 
 - `default` - clean markdown with common page chrome removed and images stripped
 - `full-page` - keep the full page output
-- `text-only` - target `main`, strip images, strip links
+- `text-only` - strip images and links, and try to focus on the page's main reading area
 - `wait-for-content` - use `X-Respond-Timing: network-idle` and `X-Timeout: 30`; if that still fails, try again with `--wait-for-selector`
 
 Use them like this:
