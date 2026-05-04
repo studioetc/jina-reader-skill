@@ -1,16 +1,16 @@
-# Jina Reader -- Agent Skill
+# Jina Reader — Agent Skill
 
-An [Agent Skill](https://agentskills.io) that downloads clean markdown from URLs using [Jina Reader](https://jina.ai/reader). Works with web pages, PDFs, and JS-heavy sites. Content is saved to local files, not loaded into the agent's context.
+An [Agent Skill](https://agentskills.io) that converts websites and PDFs into clean, LLM-friendly markdown using [Jina Reader](https://jina.ai/reader). Saves the markdown to local files by default, or loads it directly into the agent's session via `curl`.
 
 ## Install
 
 Copy the `jina-reader/` directory into your agent's skills folder:
 
-| Tool | Skills location |
-|------|----------------|
-| Claude Code | `~/.claude/skills/` |
-| Codex | `~/.agents/skills/` |
-| Gemini CLI | `~/.gemini/skills/` |
+| Tool              | Skills location       |
+| ----------------- | --------------------- |
+| Claude Code       | `~/.claude/skills/`   |
+| Codex             | `~/.agents/skills/`   |
+| Gemini CLI        | `~/.gemini/skills/`   |
 | VS Code / Copilot | `.github/skills/` in your repo |
 
 Example for Claude Code:
@@ -22,24 +22,38 @@ cp -r /tmp/jina-reader-skill/jina-reader ~/.claude/skills/
 
 ## Setup
 
-Optionally set a Jina API key for higher rate limits:
+Optional but recommended — set a Jina API key for higher rate limits (500 RPM vs the 20 RPM free tier):
 
 ```bash
 export JINA_API_KEY="your-key-here"
 ```
 
-The skill works without a key (free tier rate limits apply). Get a key at [jina.ai](https://jina.ai).
+Get a key for free at [jina.ai/reader](https://jina.ai/reader).
 
 ## Usage
 
-Once installed, ask your agent to fetch URLs as markdown:
+Once installed, prompt your agent naturally:
 
-- "Fetch https://example.com as markdown"
-- "Save these URLs to local markdown files"
-- "Read this PDF and save it locally"
-- "Download all the URLs in urls.txt as markdown"
+- *"Download this page as markdown — https://en.wikipedia.org/wiki/Solaris_(1972_film)"*
+- *"Download all URLs in `movies.txt` as markdown"*
+- *"Load this page into context as markdown, article only"*
 
-The skill uses a bundled Python script with preset modes: `default`, `full-page`, `text-only`, and `wait-for-content`.
+The skill picks the right path automatically: the bundled Python script for save-to-disk asks, `curl` for load-into-context.
+
+## Presets
+
+Four presets cover most use cases:
+
+- **`default`** — clean markdown, strips nav/header/footer/aside and images
+- **`full-page`** — full page as markdown, nothing stripped
+- **`text-only`** — main content only, no images or links
+- **`wait-for-content`** — waits up to 30s for JS-rendered content
+
+For finer control, the script exposes selector and timeout overrides — see `jina-reader/SKILL.md`.
+
+## Notes
+
+- `--insecure` is enabled by default to avoid SSL friction on Python setups without certificates installed. Disable with `--no-insecure` if your environment is locked down.
 
 ## License
 
